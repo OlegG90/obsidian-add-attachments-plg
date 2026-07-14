@@ -18,10 +18,10 @@ export default class AddAttachmentPlugin extends Plugin {
 	async onload(): Promise<void> {
 		await this.loadSettings();
 
-		// Both actions share the "paperclip" icon so they read as one family in the
-		// ribbon and the mobile toolbar (tooltips/names disambiguate them).
+		// Normal action = "paperclip" (attach). Original action = "files" (attach several
+		// files as-is) — a related but distinct glyph so the two are told apart at a glance.
 		this.addRibbonIcon("paperclip", "Add attachments", () => void this.run());
-		this.addRibbonIcon("paperclip", "Add original attachments (no rename/resize)", () =>
+		this.addRibbonIcon("files", "Add original attachments (no rename/resize)", () =>
 			void this.run(RAW_OVERRIDES),
 		);
 
@@ -35,7 +35,7 @@ export default class AddAttachmentPlugin extends Plugin {
 		this.addCommand({
 			id: "add-original-attachments",
 			name: "Add original attachments (keep names, no resize)",
-			icon: "paperclip",
+			icon: "files",
 			editorCallback: () => void this.run(RAW_OVERRIDES),
 		});
 
