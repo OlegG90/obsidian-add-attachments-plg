@@ -18,20 +18,24 @@ export default class AddAttachmentPlugin extends Plugin {
 	async onload(): Promise<void> {
 		await this.loadSettings();
 
+		// Both actions share the "paperclip" icon so they read as one family in the
+		// ribbon and the mobile toolbar (tooltips/names disambiguate them).
 		this.addRibbonIcon("paperclip", "Add attachments", () => void this.run());
-		this.addRibbonIcon("file-plus", "Add original attachments (no rename/resize)", () =>
+		this.addRibbonIcon("paperclip", "Add original attachments (no rename/resize)", () =>
 			void this.run(RAW_OVERRIDES),
 		);
 
 		this.addCommand({
 			id: "add-attachments",
 			name: "Add attachments to current note",
+			icon: "paperclip",
 			editorCallback: () => void this.run(),
 		});
 
 		this.addCommand({
 			id: "add-original-attachments",
 			name: "Add original attachments (keep names, no resize)",
+			icon: "paperclip",
 			editorCallback: () => void this.run(RAW_OVERRIDES),
 		});
 

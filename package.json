@@ -1,6 +1,6 @@
 {
 	"name": "add-attachment",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "Add multiple attachment files to a note at once with auto-inserted links, optional rename and image resize.",
 	"main": "main.js",
 	"scripts": {
