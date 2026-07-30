@@ -7,7 +7,7 @@ import {
 import { pickFiles } from "./attachmentPicker";
 import { processFile } from "./attachmentProcessor";
 import { AttachmentNamer, ensureFolder, parentFolder } from "./naming";
-import { insertLink } from "./linkInserter";
+import { buildLink, insertLinks } from "./linkInserter";
 
 /** "Original" command: keep filenames as-is and never resize, ignoring saved settings. */
 const RAW_OVERRIDES = { renameFiles: false, imageResizeEnabled: false } as const;
@@ -80,6 +80,7 @@ export default class AddAttachmentPlugin extends Plugin {
 
 		let ok = 0;
 		let failed = 0;
+		const links: string[] = [];
 		const progress = new Notice(`Add Attachment: 0 / ${files.length}`, 0);
 
 		// Sequential on purpose: parallel Canvas resize of several large images
@@ -95,7 +96,7 @@ export default class AddAttachmentPlugin extends Plugin {
 				await ensureFolder(this.app, parentFolder(targetPath));
 				const created = await this.app.vault.createBinary(targetPath, processed.data);
 				if (created instanceof TFile) {
-					insertLink(this.app, editor, created, note.path);
+					links.push(buildLink(this.app, created, note.path));
 				}
 				ok++;
 			} catch (e) {
@@ -104,6 +105,10 @@ export default class AddAttachmentPlugin extends Plugin {
 			}
 			progress.setMessage(`Add Attachment: ${ok + failed} / ${files.length}${failed ? ` (${failed} failed)` : ""}`);
 		}
+
+		// One edit for the whole batch: a single undo step, and the delimiter only
+		// ever lands between links.
+		insertLinks(editor, links, settings.linkDelimiter);
 
 		progress.setMessage(`Add Attachment: ${ok} ${label}added${failed ? `, ${failed} failed` : ""}.`);
 		setTimeout(() => progress.hide(), 5000);

@@ -10,6 +10,8 @@ export interface AddAttachmentSettings {
 	resizeThreshold: number;
 	/** Encode quality 0.1–1.0, applied when re-encoding a resized image. */
 	jpegQuality: number;
+	/** Text inserted BETWEEN links of one batch (not after the last one). */
+	linkDelimiter: string;
 }
 
 export const DEFAULT_SETTINGS: AddAttachmentSettings = {
@@ -17,6 +19,23 @@ export const DEFAULT_SETTINGS: AddAttachmentSettings = {
 	imageResizeEnabled: true,
 	resizeThreshold: 1600,
 	jpegQuality: 0.85,
+	linkDelimiter: "\n",
+};
+
+/** Sane bounds for the resize threshold, in pixels. */
+export const THRESHOLD_MIN = 64;
+export const THRESHOLD_MAX = 20000;
+
+/**
+ * Delimiter choices offered in settings. A dropdown rather than a free text field:
+ * on mobile there is no sane way to type "\n", and the analog plugin's ␣/↵
+ * placeholder trick is confusing.
+ */
+const DELIMITER_OPTIONS: Record<string, string> = {
+	"\n": "New line — one link per line",
+	"\n\n": "Blank line — paragraph between links",
+	" ": "Space — links in one line",
+	"": "Nothing — links glued together",
 };
 
 export class AddAttachmentSettingTab extends PluginSettingTab {
@@ -55,19 +74,41 @@ export class AddAttachmentSettingTab extends PluginSettingTab {
 		if (this.plugin.settings.imageResizeEnabled) {
 			new Setting(containerEl)
 				.setName("Resize threshold (px)")
-				.setDesc("Longest side. Images larger than this are scaled down proportionally.")
-				.addText((t) =>
-					t
-						.setPlaceholder("1600")
-						.setValue(String(this.plugin.settings.resizeThreshold))
-						.onChange(async (v) => {
-							const n = parseInt(v, 10);
-							if (!Number.isNaN(n) && n > 0) {
-								this.plugin.settings.resizeThreshold = n;
-								await this.plugin.saveSettings();
-							}
-						}),
-				);
+				.setDesc(
+					`Longest side. Images larger than this are scaled down proportionally. ${THRESHOLD_MIN}–${THRESHOLD_MAX}.`,
+				)
+				.addText((t) => {
+					t.setPlaceholder(String(DEFAULT_SETTINGS.resizeThreshold)).setValue(
+						String(this.plugin.settings.resizeThreshold),
+					);
+
+					// Numeric input: on Android this brings up the number keypad and the
+					// browser itself rejects non-digits.
+					t.inputEl.type = "number";
+					t.inputEl.min = String(THRESHOLD_MIN);
+					t.inputEl.max = String(THRESHOLD_MAX);
+
+					// Save only valid in-range values while typing...
+					t.onChange(async (v) => {
+						const n = parseInt(v, 10);
+						if (!Number.isNaN(n) && n >= THRESHOLD_MIN && n <= THRESHOLD_MAX) {
+							this.plugin.settings.resizeThreshold = n;
+							await this.plugin.saveSettings();
+						}
+					});
+
+					// ...and on blur clamp/restore, so the field can never be left showing
+					// a value that was not actually stored.
+					t.inputEl.addEventListener("blur", async () => {
+						const n = parseInt(t.inputEl.value, 10);
+						const clamped = Number.isNaN(n)
+							? this.plugin.settings.resizeThreshold
+							: Math.min(THRESHOLD_MAX, Math.max(THRESHOLD_MIN, n));
+						this.plugin.settings.resizeThreshold = clamped;
+						t.setValue(String(clamped));
+						await this.plugin.saveSettings();
+					});
+				});
 
 			new Setting(containerEl)
 				.setName("Image quality")
@@ -83,5 +124,19 @@ export class AddAttachmentSettingTab extends PluginSettingTab {
 						}),
 				);
 		}
+
+		// Outside the resize block: applies to every batch, images or not.
+		new Setting(containerEl)
+			.setName("Separator between links")
+			.setDesc("Inserted between the links of one batch, not after the last one.")
+			.addDropdown((d) => {
+				for (const [value, label] of Object.entries(DELIMITER_OPTIONS)) {
+					d.addOption(value, label);
+				}
+				d.setValue(this.plugin.settings.linkDelimiter).onChange(async (v) => {
+					this.plugin.settings.linkDelimiter = v;
+					await this.plugin.saveSettings();
+				});
+			});
 	}
 }
