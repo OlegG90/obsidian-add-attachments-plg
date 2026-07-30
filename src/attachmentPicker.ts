@@ -26,13 +26,17 @@ export function pickFiles(accept?: string): Promise<File[]> {
 		});
 
 		// The 'change' event never fires on cancel. When the window regains focus
-		// without a selection, treat it as a cancel after a short grace period.
+		// without a selection, treat it as a cancel — but only after a grace period.
+		// On Android 'focus' often arrives BEFORE 'change' (the picker Activity result is
+		// delivered asynchronously), so a short window would resolve to [] and silently
+		// drop a real selection. Keep this comfortably long; a cancel just feels slower.
+		const CANCEL_GRACE_MS = 2000;
 		const onFocus = () => {
 			window.setTimeout(() => {
 				if (!settled && (!input.files || input.files.length === 0)) {
 					finish([]);
 				}
-			}, 500);
+			}, CANCEL_GRACE_MS);
 		};
 		window.addEventListener("focus", onFocus);
 

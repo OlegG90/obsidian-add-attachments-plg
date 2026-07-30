@@ -51,21 +51,27 @@ export default class AddAttachmentPlugin extends Plugin {
 		overrides?: Partial<Pick<AddAttachmentSettings, "renameFiles" | "imageResizeEnabled">>,
 	): Promise<void> {
 		const settings: AddAttachmentSettings = { ...this.settings, ...overrides };
+		const label = overrides === RAW_OVERRIDES ? "original " : "";
 
-		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-		if (!view || !view.file) {
+		// Require an open note before bothering the user with a file dialog.
+		if (!this.app.workspace.getActiveViewOfType(MarkdownView)?.file) {
 			new Notice("Add Attachment: open a note first.");
-			return;
-		}
-		const note = view.file;
-		const editor = view.editor;
-		if (!editor) {
-			new Notice("Add Attachment: editor not available.");
 			return;
 		}
 
 		const files = await pickFiles();
 		if (files.length === 0) return;
+
+		// Re-resolve the active note AFTER the picker: the OS dialog can stay open for a
+		// long time and the user may switch notes meanwhile. Insert into whatever is active
+		// now — never write links into a stale editor or name files after the old note.
+		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+		const editor = view?.editor;
+		if (!view?.file || !editor) {
+			new Notice("Add Attachment: no note is open — nothing inserted.");
+			return;
+		}
+		const note = view.file;
 
 		// Built once per batch so the running index is shared across all files.
 		const namer = settings.renameFiles
@@ -99,7 +105,7 @@ export default class AddAttachmentPlugin extends Plugin {
 			progress.setMessage(`Add Attachment: ${ok + failed} / ${files.length}${failed ? ` (${failed} failed)` : ""}`);
 		}
 
-		progress.setMessage(`Add Attachment: ${ok} added${failed ? `, ${failed} failed` : ""}.`);
+		progress.setMessage(`Add Attachment: ${ok} ${label}added${failed ? `, ${failed} failed` : ""}.`);
 		setTimeout(() => progress.hide(), 5000);
 	}
 
