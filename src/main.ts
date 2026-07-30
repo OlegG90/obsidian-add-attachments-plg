@@ -59,6 +59,10 @@ export default class AddAttachmentPlugin extends Plugin {
 		}
 		const note = view.file;
 		const editor = view.editor;
+		if (!editor) {
+			new Notice("Add Attachment: editor not available.");
+			return;
+		}
 
 		const files = await pickFiles();
 		if (files.length === 0) return;
@@ -70,6 +74,7 @@ export default class AddAttachmentPlugin extends Plugin {
 
 		let ok = 0;
 		let failed = 0;
+		const progress = new Notice(`Add Attachment: 0 / ${files.length}`, 0);
 
 		// Sequential on purpose: parallel Canvas resize of several large images
 		// would spike memory and block the UI thread on mobile.
@@ -91,9 +96,11 @@ export default class AddAttachmentPlugin extends Plugin {
 				console.error("[add-attachment] failed for", file.name, e);
 				failed++;
 			}
+			progress.setMessage(`Add Attachment: ${ok + failed} / ${files.length}${failed ? ` (${failed} failed)` : ""}`);
 		}
 
-		new Notice(`Add Attachment: ${ok} added${failed ? `, ${failed} failed` : ""}.`);
+		progress.setMessage(`Add Attachment: ${ok} added${failed ? `, ${failed} failed` : ""}.`);
+		setTimeout(() => progress.hide(), 5000);
 	}
 
 	async loadSettings(): Promise<void> {

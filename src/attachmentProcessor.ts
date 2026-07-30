@@ -3,6 +3,11 @@ import { AddAttachmentSettings } from "./settings";
 /** Formats we can decode + re-encode through Canvas. Everything else copies verbatim. */
 const RESIZABLE = new Set(["jpg", "jpeg", "png", "webp"]);
 
+const MIME_MAP: Record<string, string> = {
+	png: "image/png",
+	webp: "image/webp",
+};
+
 export interface ProcessedFile {
 	data: ArrayBuffer;
 	/** Lowercased extension without the dot. Preserved from the source file. */
@@ -58,7 +63,7 @@ async function tryResize(
 		if (!ctx) return null;
 		ctx.drawImage(bitmap, 0, 0, w, h);
 
-		const mime = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+		const mime = MIME_MAP[ext] ?? "image/jpeg";
 		const blob = await new Promise<Blob | null>((res) =>
 			canvas.toBlob(res, mime, settings.jpegQuality),
 		);
