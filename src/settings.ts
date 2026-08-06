@@ -110,16 +110,22 @@ export class AddAttachmentSettingTab extends PluginSettingTab {
 					});
 				});
 
-			new Setting(containerEl)
+			// The value is shown in the description rather than via setDynamicTooltip(),
+			// which is deprecated since Obsidian 1.13 (sliders show it inline now) but
+			// would leave 1.5.7–1.12 users with no readout at all.
+			const qualityDesc = (v: number): string =>
+				`0.1–1.0. Applied when re-encoding resized jpg/webp images. Current: ${v.toFixed(2)}`;
+
+			const quality = new Setting(containerEl)
 				.setName("Image quality")
-				.setDesc("0.1–1.0. Applied when re-encoding resized jpg/webp images.")
+				.setDesc(qualityDesc(this.plugin.settings.jpegQuality))
 				.addSlider((s) =>
 					s
 						.setLimits(0.1, 1, 0.05)
 						.setValue(this.plugin.settings.jpegQuality)
-						.setDynamicTooltip()
 						.onChange(async (v) => {
 							this.plugin.settings.jpegQuality = v;
+							quality.setDesc(qualityDesc(v));
 							await this.plugin.saveSettings();
 						}),
 				);
