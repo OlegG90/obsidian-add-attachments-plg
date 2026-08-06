@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, PluginSettingTab, SettingDefinitionItem } from "obsidian";
 import type AddAttachmentPlugin from "./main";
 
 export interface AddAttachmentSettings {
@@ -27,9 +27,8 @@ export const THRESHOLD_MIN = 64;
 export const THRESHOLD_MAX = 20000;
 
 /**
- * Delimiter choices offered in settings. A dropdown rather than a free text field:
- * on mobile there is no sane way to type "\n", and the analog plugin's ␣/↵
- * placeholder trick is confusing.
+ * Delimiter choices. A dropdown rather than a free text field: on mobile there
+ * is no sane way to type "\n".
  */
 const DELIMITER_OPTIONS: Record<string, string> = {
 	"\n": "New line — one link per line",
@@ -38,6 +37,13 @@ const DELIMITER_OPTIONS: Record<string, string> = {
 	"": "Nothing — links glued together",
 };
 
+type SettingKey = keyof AddAttachmentSettings;
+
+/**
+ * Declarative settings tab (Obsidian 1.13+). We return definitions instead of
+ * building DOM in display(): Obsidian renders them, wires persistence through
+ * get/setControlValue, and makes every setting searchable for free.
+ */
 export class AddAttachmentSettingTab extends PluginSettingTab {
 	private readonly plugin: AddAttachmentPlugin;
 
@@ -46,103 +52,70 @@ export class AddAttachmentSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
-	display(): void {
-		const { containerEl } = this;
-		containerEl.empty();
+	getSettingDefinitions(): SettingDefinitionItem<SettingKey>[] {
+		const resizeOn = (): boolean => this.plugin.settings.imageResizeEnabled;
 
-		new Setting(containerEl)
-			.setName("Rename attached files")
-			.setDesc('Rename to "<note name>_<index>". Turn off to keep the original filename.')
-			.addToggle((t) =>
-				t.setValue(this.plugin.settings.renameFiles).onChange(async (v) => {
-					this.plugin.settings.renameFiles = v;
-					await this.plugin.saveSettings();
-				}),
-			);
+		return [
+			{
+				name: "Rename attached files",
+				desc: 'Rename to "<note name>_<index>". Turn off to keep the original filename.',
+				control: { type: "toggle", key: "renameFiles" },
+			},
+			{
+				name: "Resize images",
+				desc: "Downscale large images (jpg/png/webp) before saving.",
+				control: { type: "toggle", key: "imageResizeEnabled" },
+			},
+			{
+				name: "Resize threshold (px)",
+				desc: "Longest side. Images larger than this are scaled down proportionally.",
+				// Replaces the old manual display() re-render; see setControlValue.
+				visible: resizeOn,
+				control: {
+					type: "number",
+					key: "resizeThreshold",
+					min: THRESHOLD_MIN,
+					max: THRESHOLD_MAX,
+					step: 1,
+					placeholder: String(DEFAULT_SETTINGS.resizeThreshold),
+					validate: (v) =>
+						Number.isInteger(v) && v >= THRESHOLD_MIN && v <= THRESHOLD_MAX
+							? undefined
+							: `Enter a whole number between ${THRESHOLD_MIN} and ${THRESHOLD_MAX}.`,
+				},
+			},
+			{
+				name: "Image quality",
+				desc: "Applied when re-encoding resized jpg/webp images.",
+				visible: resizeOn,
+				control: {
+					type: "slider",
+					key: "jpegQuality",
+					min: 0.1,
+					max: 1,
+					step: 0.05,
+					// Without this, float steps can read as 0.8500000000000001.
+					displayFormat: (v) => v.toFixed(2),
+				},
+			},
+			{
+				name: "Separator between links",
+				desc: "Inserted between the links of one batch, not after the last one.",
+				control: { type: "dropdown", key: "linkDelimiter", options: DELIMITER_OPTIONS },
+			},
+		];
+	}
 
-		new Setting(containerEl)
-			.setName("Resize images")
-			.setDesc("Downscale large images (jpg/png/webp) before saving.")
-			.addToggle((t) =>
-				t.setValue(this.plugin.settings.imageResizeEnabled).onChange(async (v) => {
-					this.plugin.settings.imageResizeEnabled = v;
-					await this.plugin.saveSettings();
-					this.display(); // refresh so the fields below reflect the new state
-				}),
-			);
+	getControlValue(key: string): unknown {
+		return this.plugin.settings[key as SettingKey];
+	}
 
-		if (this.plugin.settings.imageResizeEnabled) {
-			new Setting(containerEl)
-				.setName("Resize threshold (px)")
-				.setDesc(
-					`Longest side. Images larger than this are scaled down proportionally. ${THRESHOLD_MIN}–${THRESHOLD_MAX}.`,
-				)
-				.addText((t) => {
-					t.setPlaceholder(String(DEFAULT_SETTINGS.resizeThreshold)).setValue(
-						String(this.plugin.settings.resizeThreshold),
-					);
+	async setControlValue(key: string, value: unknown): Promise<void> {
+		Object.assign(this.plugin.settings, { [key]: value });
+		await this.plugin.saveSettings();
 
-					// Numeric input: on Android this brings up the number keypad and the
-					// browser itself rejects non-digits.
-					t.inputEl.type = "number";
-					t.inputEl.min = String(THRESHOLD_MIN);
-					t.inputEl.max = String(THRESHOLD_MAX);
-
-					// Save only valid in-range values while typing...
-					t.onChange(async (v) => {
-						const n = parseInt(v, 10);
-						if (!Number.isNaN(n) && n >= THRESHOLD_MIN && n <= THRESHOLD_MAX) {
-							this.plugin.settings.resizeThreshold = n;
-							await this.plugin.saveSettings();
-						}
-					});
-
-					// ...and on blur clamp/restore, so the field can never be left showing
-					// a value that was not actually stored.
-					t.inputEl.addEventListener("blur", async () => {
-						const n = parseInt(t.inputEl.value, 10);
-						const clamped = Number.isNaN(n)
-							? this.plugin.settings.resizeThreshold
-							: Math.min(THRESHOLD_MAX, Math.max(THRESHOLD_MIN, n));
-						this.plugin.settings.resizeThreshold = clamped;
-						t.setValue(String(clamped));
-						await this.plugin.saveSettings();
-					});
-				});
-
-			// The value is shown in the description rather than via setDynamicTooltip(),
-			// which is deprecated since Obsidian 1.13 (sliders show it inline now) but
-			// would leave 1.5.7–1.12 users with no readout at all.
-			const qualityDesc = (v: number): string =>
-				`0.1–1.0. Applied when re-encoding resized jpg/webp images. Current: ${v.toFixed(2)}`;
-
-			const quality = new Setting(containerEl)
-				.setName("Image quality")
-				.setDesc(qualityDesc(this.plugin.settings.jpegQuality))
-				.addSlider((s) =>
-					s
-						.setLimits(0.1, 1, 0.05)
-						.setValue(this.plugin.settings.jpegQuality)
-						.onChange(async (v) => {
-							this.plugin.settings.jpegQuality = v;
-							quality.setDesc(qualityDesc(v));
-							await this.plugin.saveSettings();
-						}),
-				);
-		}
-
-		// Outside the resize block: applies to every batch, images or not.
-		new Setting(containerEl)
-			.setName("Separator between links")
-			.setDesc("Inserted between the links of one batch, not after the last one.")
-			.addDropdown((d) => {
-				for (const [value, label] of Object.entries(DELIMITER_OPTIONS)) {
-					d.addOption(value, label);
-				}
-				d.setValue(this.plugin.settings.linkDelimiter).onChange(async (v) => {
-					this.plugin.settings.linkDelimiter = v;
-					await this.plugin.saveSettings();
-				});
-			});
+		// The threshold/quality rows are bound to the resize toggle: re-evaluate
+		// their `visible` predicates in place (cheap, no re-render).
+		if (key === "imageResizeEnabled") this.refreshDomState();
 	}
 }
