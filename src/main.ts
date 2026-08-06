@@ -115,7 +115,19 @@ export default class AddAttachmentPlugin extends Plugin {
 	}
 
 	async loadSettings(): Promise<void> {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		const raw = ((await this.loadData()) ?? {}) as Record<string, unknown>;
+
+		// 0.5.0 renamed jpegQuality -> imageQuality (it also applies to webp).
+		// Carry the old value over so upgrading doesn't silently reset the setting.
+		let migrated = false;
+		if (typeof raw.jpegQuality === "number") {
+			if (raw.imageQuality === undefined) raw.imageQuality = raw.jpegQuality;
+			delete raw.jpegQuality;
+			migrated = true;
+		}
+
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, raw);
+		if (migrated) await this.saveSettings();
 	}
 
 	async saveSettings(): Promise<void> {

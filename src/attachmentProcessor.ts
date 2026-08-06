@@ -12,26 +12,24 @@ export interface ProcessedFile {
 	data: ArrayBuffer;
 	/** Lowercased extension without the dot. Preserved from the source file. */
 	extension: string;
-	/** Original base name without extension (used when rename is off). */
-	originalBaseName: string;
 }
 
 export async function processFile(
 	file: File,
 	settings: AddAttachmentSettings,
 ): Promise<ProcessedFile> {
-	const { base, ext } = splitName(file.name);
+	const ext = fileExtension(file.name);
 
 	if (settings.imageResizeEnabled && RESIZABLE.has(ext)) {
 		const resized = await tryResize(file, ext, settings);
 		if (resized) {
-			return { data: resized, extension: ext, originalBaseName: base };
+			return { data: resized, extension: ext };
 		}
 	}
 
 	// No resize (disabled, non-image, already small, or decode failed) → copy as-is.
 	const data = await file.arrayBuffer();
-	return { data, extension: ext, originalBaseName: base };
+	return { data, extension: ext };
 }
 
 /**
@@ -65,7 +63,7 @@ async function tryResize(
 
 		const mime = MIME_MAP[ext] ?? "image/jpeg";
 		const blob = await new Promise<Blob | null>((res) =>
-			canvas.toBlob(res, mime, settings.jpegQuality),
+			canvas.toBlob(res, mime, settings.imageQuality),
 		);
 		if (!blob) return null;
 		return await blob.arrayBuffer();
@@ -77,11 +75,8 @@ async function tryResize(
 	}
 }
 
-function splitName(fileName: string): { base: string; ext: string } {
+/** Lowercased extension without the dot; "" for a file with no extension. */
+function fileExtension(fileName: string): string {
 	const dot = fileName.lastIndexOf(".");
-	if (dot <= 0) return { base: fileName, ext: "" };
-	return {
-		base: fileName.slice(0, dot),
-		ext: fileName.slice(dot + 1).toLowerCase(),
-	};
+	return dot <= 0 ? "" : fileName.slice(dot + 1).toLowerCase();
 }

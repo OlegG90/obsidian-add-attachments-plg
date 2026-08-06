@@ -8,8 +8,8 @@ export interface AddAttachmentSettings {
 	imageResizeEnabled: boolean;
 	/** Max size of the longest side, in pixels. Analog of MAX_WIDTH in images_resize.py. */
 	resizeThreshold: number;
-	/** Encode quality 0.1–1.0, applied when re-encoding a resized image. */
-	jpegQuality: number;
+	/** Encode quality 0.1–1.0, applied when re-encoding a resized jpg/webp. */
+	imageQuality: number;
 	/** Text inserted BETWEEN links of one batch (not after the last one). */
 	linkDelimiter: string;
 }
@@ -18,7 +18,7 @@ export const DEFAULT_SETTINGS: AddAttachmentSettings = {
 	renameFiles: true,
 	imageResizeEnabled: true,
 	resizeThreshold: 1600,
-	jpegQuality: 0.85,
+	imageQuality: 0.85,
 	linkDelimiter: "\n",
 };
 
@@ -90,7 +90,7 @@ export class AddAttachmentSettingTab extends PluginSettingTab {
 				visible: resizeOn,
 				control: {
 					type: "slider",
-					key: "jpegQuality",
+					key: "imageQuality",
 					min: 0.1,
 					max: 1,
 					step: 0.05,

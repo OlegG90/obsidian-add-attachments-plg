@@ -3,12 +3,11 @@
  * Works identically on desktop (Electron) and mobile (Capacitor WebView) — no Node APIs.
  * Resolves to an empty array if the user cancels.
  */
-export function pickFiles(accept?: string): Promise<File[]> {
+export function pickFiles(): Promise<File[]> {
 	return new Promise((resolve) => {
 		const input = document.createElement("input");
 		input.type = "file";
 		input.multiple = true;
-		if (accept) input.accept = accept;
 		input.style.display = "none";
 		document.body.appendChild(input);
 
