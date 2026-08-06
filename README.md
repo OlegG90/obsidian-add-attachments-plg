@@ -45,5 +45,25 @@ After deploy, enable/reload the plugin in *Settings → Community plugins*.
 |---|---|---|
 | Rename attached files | on | off = keep original filename |
 | Resize images | on | jpg / jpeg / png / webp only |
-| Resize threshold (px) | 1600 | longest side |
+| Resize threshold (px) | 1600 | longest side, 64–20000 |
 | Image quality | 0.85 | jpg / webp re-encode quality |
+| Separator between links | new line | inserted between links of a batch, not after the last |
+
+## Known limitations
+
+**Memory on very large photos (mobile).** Resizing decodes the image at full
+resolution first (`createImageBitmap`), so peak memory is driven by the source
+dimensions, not the target ones — a 40+ MP photo needs a few hundred MB while it
+is being scaled. On a low-RAM Android device that decode can fail.
+
+It fails *safely*: the resize step never throws, so the file is copied through at
+its original size and a warning is logged to the console. You get the attachment
+either way; it just isn't downscaled. Files are processed one at a time
+specifically so several large photos can't pile up in memory at once.
+
+If it happens often, resize the photos before attaching, or attach them in
+smaller batches.
+
+**Other formats.** SVG and animated GIF are never resized (they'd lose vector
+data / animation) and pass through untouched. HEIC photos may not decode in
+older Android WebViews — same safe fallback: copied at original size.
