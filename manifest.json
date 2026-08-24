@@ -1,7 +1,7 @@
 {
 	"id": "add-attachment",
 	"name": "Add Attachment",
-	"version": "0.5.0",
+	"version": "0.5.1",
 	"minAppVersion": "1.13.1",
 	"description": "Add multiple attachment files to a note at once with auto-inserted links, optional rename and image resize. Works on desktop and mobile.",
 	"author": "OlegG",
