@@ -45,13 +45,14 @@ export default class AddAttachmentPlugin extends Plugin {
 	/**
 	 * Pick files, process each, save into the vault, and insert a link at the cursor.
 	 * `overrides` force specific settings for this run (e.g. the "original" command
-	 * disables rename + resize regardless of the user's saved settings).
+	 * disables rename + resize regardless of the user's saved settings). Passing any
+	 * override marks the run as "original" for status messages.
 	 */
 	private async run(
 		overrides?: Partial<Pick<AddAttachmentSettings, "renameFiles" | "imageResizeEnabled">>,
 	): Promise<void> {
 		const settings: AddAttachmentSettings = { ...this.settings, ...overrides };
-		const label = overrides === RAW_OVERRIDES ? "original " : "";
+		const label = overrides ? "original " : "";
 
 		// Require an open note before bothering the user with a file dialog.
 		if (!this.app.workspace.getActiveViewOfType(MarkdownView)?.file) {
@@ -85,33 +86,43 @@ export default class AddAttachmentPlugin extends Plugin {
 
 		// Sequential on purpose: parallel Canvas resize of several large images
 		// would spike memory and block the UI thread on mobile.
-		for (const file of files) {
-			try {
-				const processed = await processFile(file, settings);
+		try {
+			for (const file of files) {
+				try {
+					const processed = await processFile(file, settings);
 
-				const targetPath = namer
-					? namer.next(this.app, processed.extension)
-					: await this.app.fileManager.getAvailablePathForAttachment(file.name, note.path);
+					const targetPath = namer
+						? namer.next(this.app, processed.extension)
+						: await this.app.fileManager.getAvailablePathForAttachment(file.name, note.path);
 
-				await ensureFolder(this.app, parentFolder(targetPath));
-				const created = await this.app.vault.createBinary(targetPath, processed.data);
-				if (created instanceof TFile) {
+					await ensureFolder(this.app, parentFolder(targetPath));
+					const created = await this.app.vault.createBinary(targetPath, processed.data);
+					if (!(created instanceof TFile)) {
+						// Defensive: the API promises TFile; treat anything else as a failure
+						// so the counters never claim a file whose link was not inserted.
+						throw new Error(`vault returned no file for ${targetPath}`);
+					}
 					links.push(buildLink(this.app, created, note.path));
+					ok++;
+				} catch (e) {
+					console.error("[add-attachment] failed for", file.name, e);
+					failed++;
 				}
-				ok++;
-			} catch (e) {
-				console.error("[add-attachment] failed for", file.name, e);
-				failed++;
+				progress.setMessage(
+					`Add Attachment: ${ok + failed} / ${files.length}${failed ? ` (${failed} failed)` : ""}`,
+				);
 			}
-			progress.setMessage(`Add Attachment: ${ok + failed} / ${files.length}${failed ? ` (${failed} failed)` : ""}`);
+
+			// One edit for the whole batch: a single undo step, and the delimiter only
+			// ever lands between links.
+			insertLinks(editor, links, settings.linkDelimiter);
+
+			progress.setMessage(`Add Attachment: ${ok} ${label}added${failed ? `, ${failed} failed` : ""}.`);
+		} finally {
+			// The notice is created persistent (timeout 0); make sure it can never leak,
+			// even if an unexpected error escapes the batch above.
+			setTimeout(() => progress.hide(), 5000);
 		}
-
-		// One edit for the whole batch: a single undo step, and the delimiter only
-		// ever lands between links.
-		insertLinks(editor, links, settings.linkDelimiter);
-
-		progress.setMessage(`Add Attachment: ${ok} ${label}added${failed ? `, ${failed} failed` : ""}.`);
-		setTimeout(() => progress.hide(), 5000);
 	}
 
 	async loadSettings(): Promise<void> {

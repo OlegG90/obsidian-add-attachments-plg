@@ -44,7 +44,15 @@ async function tryResize(
 ): Promise<ArrayBuffer | null> {
 	let bitmap: ImageBitmap | null = null;
 	try {
-		bitmap = await createImageBitmap(file);
+		// "from-image" makes EXIF rotation deterministic. Older WebViews default to
+		// ignoring it and would save photos rotated; modern ones already do this, so
+		// the option is a no-op there. Double-cast needed: the bundled DOM typings
+		// predate this value (the spec made it the default), but passing it explicitly
+		// is harmless everywhere and pins behavior on older WebViews.
+		bitmap = await createImageBitmap(
+			file,
+			{ imageOrientation: "from-image" } as unknown as ImageBitmapOptions,
+		);
 		const { width, height } = bitmap;
 		const longest = Math.max(width, height);
 
