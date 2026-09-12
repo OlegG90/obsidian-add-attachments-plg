@@ -26,7 +26,8 @@ export function pickFiles(): Promise<File[]> {
 		const input = document.createElement("input");
 		input.type = "file";
 		input.multiple = true;
-		input.style.display = "none";
+		// Hidden via a class, not an inline style (Obsidian plugin guideline).
+		input.classList.add("add-attachment-file-input");
 		document.body.appendChild(input);
 
 		// One teardown path for every listener below.

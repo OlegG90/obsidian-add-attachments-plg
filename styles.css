@@ -1,1 +1,4 @@
-/* Add Attachment — no custom styles yet. Reserved for future picker/settings UI. */
+/* The file input only exists to open the OS picker; it is never shown. */
+.add-attachment-file-input {
+	display: none;
+}
