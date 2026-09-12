@@ -8,6 +8,21 @@ const MIME_MAP: Record<string, string> = {
 	webp: "image/webp",
 };
 
+/**
+ * The pinned DOM typings predate `imageOrientation: "from-image"` (the spec later made
+ * it the default), so the stale member is widened here rather than casting the whole
+ * options object — every other property stays type-checked.
+ */
+type BitmapOptions = Omit<ImageBitmapOptions, "imageOrientation"> & {
+	imageOrientation?: "from-image" | "flipY" | "none";
+};
+
+/**
+ * "from-image" makes EXIF rotation deterministic: older WebViews default to ignoring it
+ * and would save photos rotated, while modern ones already behave this way.
+ */
+const BITMAP_OPTIONS: BitmapOptions = { imageOrientation: "from-image" };
+
 export interface ProcessedFile {
 	data: ArrayBuffer;
 	/** Lowercased extension without the dot. Preserved from the source file. */
@@ -44,15 +59,7 @@ async function tryResize(
 ): Promise<ArrayBuffer | null> {
 	let bitmap: ImageBitmap | null = null;
 	try {
-		// "from-image" makes EXIF rotation deterministic. Older WebViews default to
-		// ignoring it and would save photos rotated; modern ones already do this, so
-		// the option is a no-op there. Double-cast needed: the bundled DOM typings
-		// predate this value (the spec made it the default), but passing it explicitly
-		// is harmless everywhere and pins behavior on older WebViews.
-		bitmap = await createImageBitmap(
-			file,
-			{ imageOrientation: "from-image" } as unknown as ImageBitmapOptions,
-		);
+		bitmap = await createImageBitmap(file, BITMAP_OPTIONS as ImageBitmapOptions);
 		const { width, height } = bitmap;
 		const longest = Math.max(width, height);
 

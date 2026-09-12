@@ -9,8 +9,10 @@ import { processFile } from "./attachmentProcessor";
 import { AttachmentNamer, ensureFolder, parentFolder } from "./naming";
 import { buildLink, insertLinks } from "./linkInserter";
 
-/** "Original" command: keep filenames as-is and never resize, ignoring saved settings. */
+/** "Original" mode: keep filenames as-is and never resize, ignoring saved settings. */
 const RAW_OVERRIDES = { renameFiles: false, imageResizeEnabled: false } as const;
+
+type RunMode = "normal" | "original";
 
 export default class AddAttachmentPlugin extends Plugin {
 	settings: AddAttachmentSettings;
@@ -20,23 +22,23 @@ export default class AddAttachmentPlugin extends Plugin {
 
 		// Normal action = "paperclip" (attach). Original action = "files" (attach several
 		// files as-is) — a related but distinct glyph so the two are told apart at a glance.
-		this.addRibbonIcon("paperclip", "Add attachments", () => void this.run());
+		this.addRibbonIcon("paperclip", "Add attachments", () => void this.run("normal"));
 		this.addRibbonIcon("files", "Add original attachments (no rename/resize)", () =>
-			void this.run(RAW_OVERRIDES),
+			void this.run("original"),
 		);
 
 		this.addCommand({
 			id: "add-attachments",
 			name: "Add attachments to current note",
 			icon: "paperclip",
-			editorCallback: () => void this.run(),
+			editorCallback: () => void this.run("normal"),
 		});
 
 		this.addCommand({
 			id: "add-original-attachments",
 			name: "Add original attachments (keep names, no resize)",
 			icon: "files",
-			editorCallback: () => void this.run(RAW_OVERRIDES),
+			editorCallback: () => void this.run("original"),
 		});
 
 		this.addSettingTab(new AddAttachmentSettingTab(this.app, this));
@@ -44,15 +46,11 @@ export default class AddAttachmentPlugin extends Plugin {
 
 	/**
 	 * Pick files, process each, save into the vault, and insert a link at the cursor.
-	 * `overrides` force specific settings for this run (e.g. the "original" command
-	 * disables rename + resize regardless of the user's saved settings). Passing any
-	 * override marks the run as "original" for status messages.
+	 * "original" runs with rename + resize forced off, whatever the saved settings say.
 	 */
-	private async run(
-		overrides?: Partial<Pick<AddAttachmentSettings, "renameFiles" | "imageResizeEnabled">>,
-	): Promise<void> {
-		const settings: AddAttachmentSettings = { ...this.settings, ...overrides };
-		const label = overrides ? "original " : "";
+	private async run(mode: RunMode): Promise<void> {
+		const settings: AddAttachmentSettings =
+			mode === "original" ? { ...this.settings, ...RAW_OVERRIDES } : this.settings;
 
 		// Require an open note before bothering the user with a file dialog.
 		if (!this.app.workspace.getActiveViewOfType(MarkdownView)?.file) {
@@ -79,49 +77,54 @@ export default class AddAttachmentPlugin extends Plugin {
 			? await AttachmentNamer.create(this.app, note.path, note.basename)
 			: null;
 
-		let ok = 0;
-		let failed = 0;
+		// links.length IS the success count, so there is no second counter to keep in
+		// sync with it — a file that produced no link is failed by construction.
 		const links: string[] = [];
+		let done = 0;
 		const progress = new Notice(`Add Attachment: 0 / ${files.length}`, 0);
 
 		// Sequential on purpose: parallel Canvas resize of several large images
 		// would spike memory and block the UI thread on mobile.
-		try {
-			for (const file of files) {
-				try {
-					const processed = await processFile(file, settings);
+		for (const file of files) {
+			try {
+				const processed = await processFile(file, settings);
 
-					const targetPath = namer
-						? namer.next(this.app, processed.extension)
-						: await this.app.fileManager.getAvailablePathForAttachment(file.name, note.path);
+				const targetPath = namer
+					? namer.next(this.app, processed.extension)
+					: await this.app.fileManager.getAvailablePathForAttachment(file.name, note.path);
 
-					await ensureFolder(this.app, parentFolder(targetPath));
-					const created = await this.app.vault.createBinary(targetPath, processed.data);
-					if (!(created instanceof TFile)) {
-						// Defensive: the API promises TFile; treat anything else as a failure
-						// so the counters never claim a file whose link was not inserted.
-						throw new Error(`vault returned no file for ${targetPath}`);
-					}
-					links.push(buildLink(this.app, created, note.path));
-					ok++;
-				} catch (e) {
-					console.error("[add-attachment] failed for", file.name, e);
-					failed++;
+				await ensureFolder(this.app, parentFolder(targetPath));
+				const created = await this.app.vault.createBinary(targetPath, processed.data);
+				if (!(created instanceof TFile)) {
+					// The API promises a TFile; route anything else through the failure log.
+					throw new Error(`vault returned no file for ${targetPath}`);
 				}
-				progress.setMessage(
-					`Add Attachment: ${ok + failed} / ${files.length}${failed ? ` (${failed} failed)` : ""}`,
-				);
+				links.push(buildLink(this.app, created, note.path));
+			} catch (e) {
+				console.error("[add-attachment] failed for", file.name, e);
 			}
+			done++;
+			const pending = done - links.length;
+			progress.setMessage(
+				`Add Attachment: ${done} / ${files.length}${pending ? ` (${pending} failed)` : ""}`,
+			);
+		}
 
+		const failed = files.length - links.length;
+		const label = mode === "original" ? "original " : "";
+		try {
 			// One edit for the whole batch: a single undo step, and the delimiter only
 			// ever lands between links.
 			insertLinks(editor, links, settings.linkDelimiter);
 
-			progress.setMessage(`Add Attachment: ${ok} ${label}added${failed ? `, ${failed} failed` : ""}.`);
+			// Obsidian times this notice out itself — no timer of ours to leak or cancel.
+			new Notice(
+				`Add Attachment: ${links.length} ${label}added${failed ? `, ${failed} failed` : ""}.`,
+				5000,
+			);
 		} finally {
-			// The notice is created persistent (timeout 0); make sure it can never leak,
-			// even if an unexpected error escapes the batch above.
-			setTimeout(() => progress.hide(), 5000);
+			// The progress notice is persistent (timeout 0), so always take it down.
+			progress.hide();
 		}
 	}
 
