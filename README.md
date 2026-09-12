@@ -16,7 +16,7 @@ Runs on **desktop and mobile (Android focus)** — one bundle, no Node.js or nat
 
 See the design note (`../AddAttachment.md`) for the full architecture and the naming/conflict rules.
 
-This repo lives **outside** the Obsidian vault (`C:\Workspace\Sandbox\Projects\Obsidian_Plg\add-attachment`)
+This repo lives **outside** the Obsidian vault (`C:\Workspace\Sandbox\Projects\obsidian_add-attachment`)
 so that `node_modules`, git, and build tooling never end up in the notes vault or its Syncthing sync.
 The design/spec notes stay in the vault at `Projects/Obsidian/AddAttachment/`.
 
