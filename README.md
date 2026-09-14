@@ -6,6 +6,14 @@ optionally renamed after the note and downscaled if they are images.
 Works on **desktop and mobile** (Android in particular): one bundle, no Node.js or
 native dependencies.
 
+> [!WARNING]
+> **Commands were renamed in 0.6.0.** *Add attachments to current note* is now
+> **Attach files to current note**, and *Add original attachments (keep names, no resize)*
+> is now **Attach original files (keep names, no resize)** (command ids `attach-files` and
+> `attach-original-files`). Hotkeys and mobile toolbar buttons bound to the old commands
+> stop working after the update — re-assign them in *Settings → Hotkeys* and in the mobile
+> toolbar settings.
+
 ## What it does
 
 - **Pick many files in one go.** One dialog, one batch, links inserted at the cursor in a
