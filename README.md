@@ -35,8 +35,8 @@ If you only need the links and no processing, a simpler plugin will serve you be
 
 | Command | Rename | Resize |
 |---|---|---|
-| **Add attachments to current note** | per settings | per settings |
-| **Add original attachments (keep names, no resize)** | always off | always off |
+| **Attach files to current note** | per settings | per settings |
+| **Attach original files (keep names, no resize)** | always off | always off |
 
 Both are available from the command palette and as ribbon icons, and both can be added to
 the mobile toolbar.

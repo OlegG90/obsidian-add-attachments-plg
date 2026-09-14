@@ -9,19 +9,10 @@ const MIME_MAP: Record<string, string> = {
 };
 
 /**
- * The pinned DOM typings predate `imageOrientation: "from-image"` (the spec later made
- * it the default), so the stale member is widened here rather than casting the whole
- * options object — every other property stays type-checked.
- */
-type BitmapOptions = Omit<ImageBitmapOptions, "imageOrientation"> & {
-	imageOrientation?: "from-image" | "flipY" | "none";
-};
-
-/**
  * "from-image" makes EXIF rotation deterministic: older WebViews default to ignoring it
  * and would save photos rotated, while modern ones already behave this way.
  */
-const BITMAP_OPTIONS: BitmapOptions = { imageOrientation: "from-image" };
+const BITMAP_OPTIONS: ImageBitmapOptions = { imageOrientation: "from-image" };
 
 export interface ProcessedFile {
 	data: ArrayBuffer;
@@ -59,7 +50,7 @@ async function tryResize(
 ): Promise<ArrayBuffer | null> {
 	let bitmap: ImageBitmap | null = null;
 	try {
-		bitmap = await createImageBitmap(file, BITMAP_OPTIONS as ImageBitmapOptions);
+		bitmap = await createImageBitmap(file, BITMAP_OPTIONS);
 		const { width, height } = bitmap;
 		const longest = Math.max(width, height);
 
@@ -69,7 +60,7 @@ async function tryResize(
 		const w = Math.max(1, Math.round(width * scale));
 		const h = Math.max(1, Math.round(height * scale));
 
-		const canvas = document.createElement("canvas");
+		const canvas = createEl("canvas");
 		canvas.width = w;
 		canvas.height = h;
 		const ctx = canvas.getContext("2d");

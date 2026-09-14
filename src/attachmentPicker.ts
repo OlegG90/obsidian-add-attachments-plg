@@ -23,12 +23,13 @@ const CANCEL_BACKSTOP_MS = 10000;
 
 export function pickFiles(): Promise<File[]> {
 	return new Promise((resolve) => {
-		const input = document.createElement("input");
-		input.type = "file";
+		// Obsidian's createEl builds and appends in one step; a class rather than an inline
+		// style keeps it hidden, per the plugin guidelines.
+		const input = document.body.createEl("input", {
+			type: "file",
+			cls: "add-attachment-file-input",
+		});
 		input.multiple = true;
-		// Hidden via a class, not an inline style (Obsidian plugin guideline).
-		input.classList.add("add-attachment-file-input");
-		document.body.appendChild(input);
 
 		// One teardown path for every listener below.
 		const listeners = new AbortController();

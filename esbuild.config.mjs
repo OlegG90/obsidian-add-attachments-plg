@@ -1,6 +1,7 @@
 import esbuild from "esbuild";
 import process from "process";
-import builtins from "builtin-modules";
+// Node ships the list itself; the builtin-modules package is no longer needed.
+import { builtinModules } from "node:module";
 
 const banner = `/* Add Attachment — bundled build. Do not edit directly; edit src/ and rebuild. */`;
 
@@ -10,7 +11,7 @@ const context = await esbuild.context({
 	banner: { js: banner },
 	entryPoints: ["src/main.ts"],
 	bundle: true,
-	external: ["obsidian", "electron", ...builtins],
+	external: ["obsidian", "electron", ...builtinModules, ...builtinModules.map((m) => `node:${m}`)],
 	format: "cjs",
 	target: "es2018",
 	logLevel: "info",

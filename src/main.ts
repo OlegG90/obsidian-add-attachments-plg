@@ -22,21 +22,21 @@ export default class AddAttachmentPlugin extends Plugin {
 
 		// Normal action = "paperclip" (attach). Original action = "files" (attach several
 		// files as-is) — a related but distinct glyph so the two are told apart at a glance.
-		this.addRibbonIcon("paperclip", "Add attachments", () => void this.run("normal"));
-		this.addRibbonIcon("files", "Add original attachments (no rename/resize)", () =>
+		this.addRibbonIcon("paperclip", "Attach files", () => void this.run("normal"));
+		this.addRibbonIcon("files", "Attach original files (no rename or resize)", () =>
 			void this.run("original"),
 		);
 
 		this.addCommand({
-			id: "add-attachments",
-			name: "Add attachments to current note",
+			id: "attach-files",
+			name: "Attach files to current note",
 			icon: "paperclip",
 			editorCallback: () => void this.run("normal"),
 		});
 
 		this.addCommand({
-			id: "add-original-attachments",
-			name: "Add original attachments (keep names, no resize)",
+			id: "attach-original-files",
+			name: "Attach original files (keep names, no resize)",
 			icon: "files",
 			editorCallback: () => void this.run("original"),
 		});
