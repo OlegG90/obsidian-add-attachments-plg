@@ -1,4 +1,4 @@
-import { MarkdownView, Notice, Plugin, TExternalFile, TFile } from "obsidian";
+import { Editor, MarkdownView, Notice, Plugin, TExternalFile, TFile } from "obsidian";
 import {
 	AddAttachmentSettings,
 	AddAttachmentSettingTab,
@@ -13,9 +13,6 @@ import { buildLink, insertLinks } from "./linkInserter";
 const RAW_OVERRIDES = { renameFiles: false, imageResizeEnabled: false } as const;
 
 type RunMode = "normal" | "original";
-
-const OUTSIDE_VAULT_MESSAGE =
-	"Add Attachment: this note is outside the vault — attachments can only be added to vault notes.";
 
 /**
  * Since 1.14.4 a note can be opened from outside the vault (TExternalFile). Attachments
@@ -58,6 +55,25 @@ export default class AddAttachmentPlugin extends Plugin {
 	}
 
 	/**
+	 * The active note and its editor, if attachments can go there. Otherwise shows a
+	 * notice (`missingMessage` when no note is open) and returns null.
+	 */
+	private activeTarget(missingMessage: string): { note: TFile; editor: Editor } | null {
+		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (!view?.file || !view.editor) {
+			new Notice(missingMessage);
+			return null;
+		}
+		if (isOutsideVault(view.file)) {
+			new Notice(
+				"Add Attachment: this note is outside the vault — attachments can only be added to vault notes.",
+			);
+			return null;
+		}
+		return { note: view.file, editor: view.editor };
+	}
+
+	/**
 	 * Pick files, process each, save into the vault, and insert a link at the cursor.
 	 * "original" runs with rename + resize forced off, whatever the saved settings say.
 	 */
@@ -65,16 +81,8 @@ export default class AddAttachmentPlugin extends Plugin {
 		const settings: AddAttachmentSettings =
 			mode === "original" ? { ...this.settings, ...RAW_OVERRIDES } : this.settings;
 
-		// Require an open note before bothering the user with a file dialog.
-		const activeNote = this.app.workspace.getActiveViewOfType(MarkdownView)?.file;
-		if (!activeNote) {
-			new Notice("Add Attachment: open a note first.");
-			return;
-		}
-		if (isOutsideVault(activeNote)) {
-			new Notice(OUTSIDE_VAULT_MESSAGE);
-			return;
-		}
+		// Require an attachable note before bothering the user with a file dialog.
+		if (!this.activeTarget("Add Attachment: open a note first.")) return;
 
 		const files = await pickFiles();
 		if (files.length === 0) return;
@@ -82,17 +90,9 @@ export default class AddAttachmentPlugin extends Plugin {
 		// Re-resolve the active note AFTER the picker: the OS dialog can stay open for a
 		// long time and the user may switch notes meanwhile. Insert into whatever is active
 		// now — never write links into a stale editor or name files after the old note.
-		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-		const editor = view?.editor;
-		if (!view?.file || !editor) {
-			new Notice("Add Attachment: no note is open — nothing inserted.");
-			return;
-		}
-		const note = view.file;
-		if (isOutsideVault(note)) {
-			new Notice(OUTSIDE_VAULT_MESSAGE);
-			return;
-		}
+		const target = this.activeTarget("Add Attachment: no note is open — nothing inserted.");
+		if (!target) return;
+		const { note, editor } = target;
 
 		// Built once per batch so the running index is shared across all files.
 		const namer = settings.renameFiles
