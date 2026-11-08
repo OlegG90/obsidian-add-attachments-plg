@@ -70,6 +70,12 @@ export default class AddAttachmentPlugin extends Plugin {
 			);
 			return null;
 		}
+		// The ribbon buttons bypass editorCallback, so reading mode reaches here too. Its
+		// editor is not on screen and links would not land — refuse before saving anything.
+		if (view.getMode() !== "source") {
+			new Notice("Add Attachment: switch the note to editing mode first.");
+			return null;
+		}
 		return { note: view.file, editor: view.editor };
 	}
 
