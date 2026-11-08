@@ -1,4 +1,4 @@
-import { MarkdownView, Notice, Plugin, TFile } from "obsidian";
+import { MarkdownView, Notice, Plugin, TExternalFile, TFile } from "obsidian";
 import {
 	AddAttachmentSettings,
 	AddAttachmentSettingTab,
@@ -13,6 +13,19 @@ import { buildLink, insertLinks } from "./linkInserter";
 const RAW_OVERRIDES = { renameFiles: false, imageResizeEnabled: false } as const;
 
 type RunMode = "normal" | "original";
+
+const OUTSIDE_VAULT_MESSAGE =
+	"Add Attachment: this note is outside the vault — attachments can only be added to vault notes.";
+
+/**
+ * Since 1.14.4 a note can be opened from outside the vault (TExternalFile). Attachments
+ * are always saved into the vault, so a link written into such a note would not resolve.
+ * The class does not exist before 1.14.4, hence the typeof guard: `instanceof undefined`
+ * would throw.
+ */
+function isOutsideVault(file: TFile): boolean {
+	return typeof TExternalFile === "function" && file instanceof TExternalFile;
+}
 
 export default class AddAttachmentPlugin extends Plugin {
 	settings: AddAttachmentSettings;
@@ -53,8 +66,13 @@ export default class AddAttachmentPlugin extends Plugin {
 			mode === "original" ? { ...this.settings, ...RAW_OVERRIDES } : this.settings;
 
 		// Require an open note before bothering the user with a file dialog.
-		if (!this.app.workspace.getActiveViewOfType(MarkdownView)?.file) {
+		const activeNote = this.app.workspace.getActiveViewOfType(MarkdownView)?.file;
+		if (!activeNote) {
 			new Notice("Add Attachment: open a note first.");
+			return;
+		}
+		if (isOutsideVault(activeNote)) {
+			new Notice(OUTSIDE_VAULT_MESSAGE);
 			return;
 		}
 
@@ -71,6 +89,10 @@ export default class AddAttachmentPlugin extends Plugin {
 			return;
 		}
 		const note = view.file;
+		if (isOutsideVault(note)) {
+			new Notice(OUTSIDE_VAULT_MESSAGE);
+			return;
+		}
 
 		// Built once per batch so the running index is shared across all files.
 		const namer = settings.renameFiles
